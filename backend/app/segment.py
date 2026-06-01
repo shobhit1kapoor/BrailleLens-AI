@@ -121,7 +121,7 @@ def _should_keep_cell(pattern: str, confidence: float, dot_count: int) -> bool:
     if not pattern:
         return False
     if _is_known_pattern(pattern):
-        return confidence >= 0.52
+        return dot_count >= 1 and confidence >= 0.3
     return dot_count >= 4 and confidence >= 0.74
 
 
