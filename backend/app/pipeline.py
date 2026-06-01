@@ -30,18 +30,30 @@ def encode_png_base64(image: np.ndarray) -> str:
 
 def build_overlay(original: np.ndarray, cells: list[dict], dots: list, debug: dict) -> np.ndarray:
     overlay = original.copy()
-    for dot in dots:
-        cv2.circle(overlay, (int(dot.x), int(dot.y)), max(3, int(dot.radius)), (20, 235, 150), 2)
-        cv2.circle(overlay, (int(dot.x), int(dot.y)), 2, (255, 255, 255), -1)
-    for y in debug.get("row_centers", []):
-        cv2.line(overlay, (0, int(y)), (overlay.shape[1], int(y)), (255, 200, 40), 1)
-    for x in debug.get("column_centers", []):
-        cv2.line(overlay, (int(x), 0), (int(x), overlay.shape[0]), (120, 180, 255), 1)
+    used_points = []
+    for cell in cells:
+        used_points.extend(cell.get("dots", []))
+    for dot in used_points:
+        cv2.circle(overlay, (int(dot["x"]), int(dot["y"])), 5, (20, 235, 150), 2)
+        cv2.circle(overlay, (int(dot["x"]), int(dot["y"])), 2, (255, 255, 255), -1)
+
+    cells_by_line: dict[int, list[dict]] = {}
+    for cell in cells:
+        cells_by_line.setdefault(cell.get("line", 0), []).append(cell)
+    for line_cells in cells_by_line.values():
+        x_min = max(0, min(cell["bbox"][0] for cell in line_cells) - 10)
+        x_max = min(overlay.shape[1], max(cell["bbox"][0] + cell["bbox"][2] for cell in line_cells) + 10)
+        row_values = sorted({round(dot["y"]) for cell in line_cells for dot in cell.get("dots", [])})
+        for y in row_values:
+            cv2.line(overlay, (x_min, int(y)), (x_max, int(y)), (255, 210, 70), 1)
+
     for cell in cells:
         x, y, w, h = cell["bbox"]
         confidence = cell["confidence"]
         color = (35, 220, 90) if confidence >= 0.78 else (50, 190, 255) if confidence >= 0.5 else (60, 60, 255)
         cv2.rectangle(overlay, (x, y), (x + w, y + h), color, 2)
+        for dot in cell.get("dots", []):
+            cv2.line(overlay, (int(dot["x"]), y), (int(dot["x"]), y + h), (120, 180, 255), 1)
         label = f"{cell.get('char') or '?'} {int(confidence * 100)}%"
         cv2.putText(overlay, label, (x, max(18, y - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
     return overlay

@@ -6,7 +6,7 @@ from math import cos, radians, sin
 import cv2
 import numpy as np
 
-from .braille_map import translate_patterns
+from .braille_map import CAPITAL_SIGN, NUMBER_SIGN, PATTERN_TO_CHAR, PUNCTUATION, translate_patterns
 from .detect import DotCandidate
 
 
@@ -113,6 +113,18 @@ def _build_line_anchors(line_dots: list[DotCandidate], dot_spacing: float, calib
     return best_anchors
 
 
+def _is_known_pattern(pattern: str) -> bool:
+    return pattern in PATTERN_TO_CHAR or pattern in PUNCTUATION or pattern in {NUMBER_SIGN, CAPITAL_SIGN}
+
+
+def _should_keep_cell(pattern: str, confidence: float, dot_count: int) -> bool:
+    if not pattern:
+        return False
+    if _is_known_pattern(pattern):
+        return confidence >= 0.52
+    return dot_count >= 4 and confidence >= 0.74
+
+
 def group_cells(dots: list[DotCandidate], calibration: dict | None = None) -> tuple[list[dict], str, dict]:
     if not dots:
         return [], "", {"row_centers": [], "column_centers": [], "skew_angle": 0.0}
@@ -180,8 +192,7 @@ def group_cells(dots: list[DotCandidate], calibration: dict | None = None) -> tu
         cell_anchors = _build_line_anchors(line_dots, dot_spacing, calibration)
         if not cell_anchors:
             continue
-        line_patterns: list[str] = []
-        line_cells: list[dict] = []
+        raw_cells: list[dict] = []
         line_lookup: dict[tuple[int, int], DotCandidate] = {}
         line_column_centers: list[float] = []
         for anchor in cell_anchors:
@@ -225,14 +236,13 @@ def group_cells(dots: list[DotCandidate], calibration: dict | None = None) -> tu
                         )
 
             pattern = "".join(sorted(pattern_positions))
-            line_patterns.append(pattern)
             x0 = anchor - dot_spacing * 0.55
             y0 = line_rows[0] - row_spacing * 0.55
             bbox = [int(x0), int(y0), int(dot_spacing * 2.1), int(row_spacing * 3.1)]
-            confidence = float(median(confidences)) if confidences else 0.84
-            line_cells.append(
+            confidence = float(median(confidences)) if confidences else 0.0
+            raw_cells.append(
                 {
-                    "index": index,
+                    "anchor": anchor,
                     "line": line_number,
                     "pattern": pattern,
                     "char": "",
@@ -241,6 +251,31 @@ def group_cells(dots: list[DotCandidate], calibration: dict | None = None) -> tu
                     "dots": cell_dots,
                 }
             )
+
+        kept_cells = [
+            cell
+            for cell in raw_cells
+            if _should_keep_cell(cell["pattern"], cell["confidence"], len(cell["dots"]))
+        ]
+        if len(kept_cells) < 2:
+            continue
+
+        expected_pitch = float(
+            (calibration or {}).get(
+                "cell_pitch",
+                (calibration or {}).get("cell_spacing", _estimate_cell_pitch(column_centers, dot_spacing)),
+            )
+        )
+        line_patterns: list[str] = []
+        previous_anchor: float | None = None
+        for cell in kept_cells:
+            anchor = float(cell.pop("anchor"))
+            if previous_anchor is not None and anchor - previous_anchor > expected_pitch * 1.55:
+                line_patterns.append("")
+            line_patterns.append(cell["pattern"])
+            previous_anchor = anchor
+
+            cell["index"] = index
             index += 1
 
         line_text = translate_patterns(line_patterns)
@@ -248,14 +283,17 @@ def group_cells(dots: list[DotCandidate], calibration: dict | None = None) -> tu
             line_texts.append(line_text)
         number_mode = False
         capitalize = False
-        for cell, pattern in zip(line_cells, line_patterns):
+        for cell in kept_cells:
+            pattern = cell["pattern"]
             char, number_mode, capitalize = pattern_to_char(pattern, number_mode, capitalize)
             cell["char"] = char or ""
             if char == "?":
                 cell["confidence"] = min(cell["confidence"], 0.35)
-        cells.extend(line_cells)
+        cells.extend(kept_cells)
         all_row_centers.extend(line_rows)
-        all_column_centers.extend(line_column_centers)
+        for cell in kept_cells:
+            x, _, w, _ = cell["bbox"]
+            all_column_centers.extend([x + dot_spacing * 0.55, x + dot_spacing * 0.55 + dot_spacing])
 
     text = "\n".join(line_texts).strip()
 
