@@ -344,33 +344,41 @@ function App() {
     return canvas.toDataURL("image/jpeg", 0.9);
   }
 
-  async function scanDataUrl(dataUrl) {
-    setIsScanning(true);
-    setStatus(localText("reading"));
-    speakAuto(localText("reading"), { key: "reading" });
-    const body = new FormData();
-    body.append("image_base64", dataUrl);
+  function appendScanOptions(body) {
     body.append("language", language);
     body.append("scan_variant", scanMode);
     body.append("scan_engine", scanEngine);
     body.append("debug", String(debug));
     if (calibration) body.append("calibration_profile", JSON.stringify(calibration.profile || calibration));
+  }
+
+  async function submitScan(body, previewImage) {
+    setIsScanning(true);
+    setStatus(localText("reading"));
+    speakAuto(localText("reading"), { key: "reading" });
+    appendScanOptions(body);
     try {
       const response = await fetch(`${API_BASE}/api/scan`, { method: "POST", body });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Scan failed");
       setResult(data);
-      setSelectedImage(dataUrl);
+      setSelectedImage(previewImage);
       setView("result");
       const warning = data.warnings?.find((item) => item.includes("blurry") || item.includes("Lighting"));
       if (warning?.includes("blurry")) speakAuto(localText("blurry"), { key: "blurry" });
       if (warning?.includes("Lighting")) speakAuto(localText("lowLight"), { key: "light" });
       setStatus(data.warnings?.[0] || localText("ready"));
     } catch (error) {
-      setStatus(error.message);
+      setStatus(error.message === "Failed to fetch" ? "Upload failed. Check that the backend is running and try a smaller image." : error.message);
     } finally {
       setIsScanning(false);
     }
+  }
+
+  async function scanDataUrl(dataUrl) {
+    const body = new FormData();
+    body.append("image_base64", dataUrl);
+    await submitScan(body, dataUrl);
   }
 
   async function scanUpload(event) {
@@ -385,8 +393,10 @@ function App() {
       setStatus("Please drop or upload a JPG, PNG, or other image file.");
       return;
     }
-    const dataUrl = await fileToDataUrl(file);
-    await scanDataUrl(dataUrl);
+    const previewDataUrl = await fileToDataUrl(file);
+    const body = new FormData();
+    body.append("file", file, file.name || "braille-upload.png");
+    await submitScan(body, previewDataUrl);
   }
 
   async function handleDrop(event) {
