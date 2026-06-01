@@ -1,3 +1,13 @@
+---
+title: BrailleLens AI
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # BrailleLens AI
 
 **Camera-Based Physical Braille Reader with Multilingual Voice Guidance**
@@ -37,7 +47,7 @@ Speech Output + Debug Overlay
 - Frontend: React, Vite, Tailwind CSS, browser camera APIs, Web Speech API
 - Backend: Python, FastAPI, OpenCV, NumPy
 - Translation: local demo dictionary for English, Hindi, Spanish, and French
-- Deployment: local-only, no paid APIs, no cloud dependency
+- Deployment: local-first, Docker-ready, suitable for Hugging Face Spaces
 
 ## Features
 
@@ -102,6 +112,23 @@ Open:
 ```text
 http://127.0.0.1:5173
 ```
+
+## Public Deployment
+
+The app can be deployed as one Docker service because FastAPI serves both the API and the built React frontend.
+
+### Hugging Face Spaces
+
+Create a free Space with Docker SDK, then push this repository to it:
+
+```bash
+git remote add space https://huggingface.co/spaces/YOUR_USERNAME/BrailleLens-AI
+git push space main
+```
+
+The Docker container listens on port `7860`, which matches the Space metadata at the top of this README.
+
+Optional Gemini Assist can be enabled by adding `GEMINI_API_KEY` as a Space secret. The local OpenCV scanner works without it.
 
 ## API
 

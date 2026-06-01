@@ -16,12 +16,13 @@ from .translation import SUPPORTED_LANGUAGES, get_language
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SAMPLES_DIR = ROOT_DIR / "sample-images"
+DIST_DIR = ROOT_DIR / "dist"
 
 app = FastAPI(title="BrailleLens AI API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -150,3 +151,15 @@ async def calibrate(
         raise
     except Exception as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+if DIST_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str) -> FileResponse:
+        requested = DIST_DIR / full_path
+        if full_path and requested.exists() and requested.is_file():
+            return FileResponse(requested)
+        return FileResponse(DIST_DIR / "index.html")
