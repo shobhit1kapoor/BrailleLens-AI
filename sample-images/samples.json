@@ -1,0 +1,32 @@
+[
+  {
+    "file": "hello_world_clear.png",
+    "expected": "hello world",
+    "type": "printed",
+    "notes": "clear lighting"
+  },
+  {
+    "file": "hello_world_tilted.png",
+    "expected": "hello world",
+    "type": "printed",
+    "notes": "tilted sample"
+  },
+  {
+    "file": "hello_world_low_light.png",
+    "expected": "hello world",
+    "type": "printed",
+    "notes": "low light"
+  },
+  {
+    "file": "hello_world_blurry.png",
+    "expected": "hello world",
+    "type": "printed",
+    "notes": "intentional blur"
+  },
+  {
+    "file": "realistic_page_embossed.png",
+    "expected": "hello world / braille reader / scan text",
+    "type": "embossed",
+    "notes": "multi-line low-contrast page"
+  }
+]
