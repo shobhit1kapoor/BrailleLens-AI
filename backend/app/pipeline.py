@@ -29,7 +29,10 @@ def encode_png_base64(image: np.ndarray) -> str:
 
 
 def build_overlay(original: np.ndarray, cells: list[dict], dots: list, debug: dict) -> np.ndarray:
-    overlay = original.copy()
+    if len(original.shape) == 2:
+        overlay = cv2.cvtColor(original, cv2.COLOR_GRAY2BGR)
+    else:
+        overlay = original.copy()
     used_points = []
     for cell in cells:
         used_points.extend(cell.get("dots", []))
@@ -191,7 +194,7 @@ def scan_image(
             "row_centers": response["debug"].get("row_centers", []),
             "column_centers": response["debug"].get("column_centers", []),
         }
-        overlay = build_overlay(processed["original"], cells, dots, segment_debug)
+        overlay = build_overlay(processed["embossed_response"], cells, dots, segment_debug)
         response["debug"]["overlay_image_base64"] = encode_png_base64(overlay)
         response["debug"]["threshold_image_base64"] = encode_png_base64(processed["threshold"])
         response["debug"]["separated_threshold_image_base64"] = encode_png_base64(processed["separated_threshold"])

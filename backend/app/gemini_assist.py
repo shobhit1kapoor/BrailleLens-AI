@@ -53,16 +53,34 @@ def _parse_json_text(text: str) -> dict[str, Any]:
         }
 
 
+def _summarize_gemini_error(model: str, status_code: int, body: str) -> str:
+    try:
+        payload = json.loads(body)
+        error = payload.get("error", {})
+        status = error.get("status") or status_code
+        message = error.get("message") or "Gemini request failed"
+        if "quota" in message.lower():
+            message = "quota exceeded for this API key"
+        elif "high demand" in message.lower():
+            message = "model is temporarily under high demand"
+        return f"{model}: {status_code} {status} - {message}"
+    except json.JSONDecodeError:
+        return f"{model}: {status_code} {body[:120]}"
+
+
 def _call_gemini_model(api_key: str, model: str, body: dict[str, Any]) -> tuple[bool, dict[str, Any] | str]:
-    response = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-        json=body,
-        timeout=35,
-    )
-    if response.status_code >= 400:
-        return False, f"{model}: {response.status_code} {response.text[:180]}"
-    return True, response.json()
+    try:
+        response = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=body,
+            timeout=35,
+        )
+        if response.status_code >= 400:
+            return False, _summarize_gemini_error(model, response.status_code, response.text)
+        return True, response.json()
+    except requests.RequestException as exc:
+        return False, f"{model}: network timeout or connection error"
 
 
 def scan_with_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict[str, Any]:

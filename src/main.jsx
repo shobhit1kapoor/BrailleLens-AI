@@ -671,8 +671,17 @@ function App() {
             {result?.ai_assist && (
               <div className="ai-assist-box">
                 <strong>AI Assist</strong>
-                <span>{result.ai_assist.available ? `Gemini ${result.ai_assist.model || ""} ${result.ai_assist.text ? "returned a result." : "is configured."}` : "Gemini Assist is not configured."}</span>
+                <span>
+                  {result.ai_assist.available
+                    ? result.ai_assist.text
+                      ? `Gemini ${result.ai_assist.model || ""} returned a result.`
+                      : "Gemini Assist is configured, but the free API did not return a usable result. Local OpenCV output is shown."
+                    : "Gemini Assist is not configured."}
+                </span>
                 {result.ai_assist.text && <small>{result.ai_assist.text}</small>}
+                {result.ai_assist.warnings?.map((warning) => (
+                  <small key={warning}>{warning}</small>
+                ))}
               </div>
             )}
             {result?.warnings?.length > 0 && (

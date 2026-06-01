@@ -110,6 +110,9 @@ async def scan(
         local_result["engine"] = "local"
         if scan_engine == "gemini":
             gemini_result = scan_with_gemini(image_bytes, file.content_type if file else "image/jpeg")
+            gemini_warnings = gemini_result.get("warnings") or []
+            if not gemini_result.get("text"):
+                gemini_warnings = ["Gemini Assist did not return a usable result. Showing local OpenCV result instead."] + gemini_warnings
             return {
                 **local_result,
                 "engine": "gemini",
@@ -117,7 +120,7 @@ async def scan(
                 "text": gemini_result.get("text") or local_result.get("text", ""),
                 "translated_text": gemini_result.get("text") or local_result.get("translated_text", ""),
                 "confidence": gemini_result.get("confidence", 0) or local_result.get("confidence", 0),
-                "warnings": list(dict.fromkeys((gemini_result.get("warnings") or []) + local_result.get("warnings", []))),
+                "warnings": list(dict.fromkeys(gemini_warnings + local_result.get("warnings", []))),
             }
         if scan_engine == "hybrid":
             gemini_result = scan_with_gemini(image_bytes, file.content_type if file else "image/jpeg")
@@ -128,6 +131,14 @@ async def scan(
                 local_result["translated_text"] = gemini_result["text"]
                 local_result["confidence"] = gemini_result.get("confidence", local_result["confidence"])
                 local_result["warnings"] = list(dict.fromkeys((gemini_result.get("warnings") or []) + local_result.get("warnings", [])))
+            elif not gemini_result.get("text"):
+                local_result["warnings"] = list(
+                    dict.fromkeys(
+                        ["Gemini Assist is unavailable right now. Hybrid mode is showing the local OpenCV result."]
+                        + (gemini_result.get("warnings") or [])
+                        + local_result.get("warnings", [])
+                    )
+                )
             return local_result
         local_result["ai_assist"] = {"available": gemini_is_configured()}
         return local_result
